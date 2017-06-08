@@ -211,9 +211,9 @@ int main(int argc, char** argv)
         trace_ended = false;
         while( curr_batch_age >= 0){
             for (int i = 0; i < curr_batch_size; ++i)
-            packets.push_back(Packet(-curr_batch_age));
+                packets.push_back(Packet(-curr_batch_age));
 
-            curr_batch_age -= T_in;
+            curr_batch_age -= arr_period;
             curr_batch_index += 1;
 
             if (curr_batch_index < batch_stream.size() - 1)
@@ -228,11 +228,12 @@ int main(int argc, char** argv)
         if (curr_batch_index >= batch_stream.size() - 1)
             trace_ended = true;
 
+        Event reserve(0, 1);
+        events.push(reserve);
+
         if (!trace_ended){
-            Event income(-curr_batch_age + arr_period, 0);
-            Event reserve(0, 1);
+            Event income(-curr_batch_age, 0);
             events.push(income);
-            events.push(reserve);
         }
         }
     }
@@ -250,36 +251,42 @@ int main(int argc, char** argv)
         std::cout << std::fixed << "the time is " << current_time << std::endl;
         std::cout << "events: ";
         std::priority_queue<Event> copy_events(events);
-            while(!copy_events.empty()){
-                std::cout << copy_events.top().time << ',' << copy_events.top().event_id << "\t";
-                copy_events.pop();
-            }
-            std::cout << '\n';
+        while(!copy_events.empty()){
+            std::cout << copy_events.top().time << ',' << copy_events.top().event_id << "\t";
+            copy_events.pop();
+        }
+        std::cout << '\n';
 
         events.pop();
 
         std::cout << "packets: ";
-        for (std::list<Packet>::iterator it = packets.begin(); it != packets.end(); it++)
+        for (auto it = packets.begin(); it != packets.end(); it++)
             std::cout << it->time << "\t";
         std::cout << '\n';
         //End FOR DEBUG
 
         //Processing of IMITATION
         if(tmp.event_id == 0){  //If event is INCOME
-            Packet packet(tmp.time);
-            for(i = 0; i < batch_stream[bacth_index % n_batches]; i++){
-                packets.push_back(packet);
-            }
-            batch_index++;              //переход к следующей пачке на новой итерации
+            if (!trace_ended){
+                if (batch_index < batch_stream.size() - 1){
+					Packet packet(tmp.time);
+					for(int i = 0; i < batch_stream[batch_index]; i++){
+						packets.push_back(packet);
+					}
+					batch_index++;              //переход к следующей пачке на новой итерации
 
-            Event income(current_time + arr_period, 0);  //прибытие пачки
-            events.push(income);
-            last_arr_time = tmp.time;
+					Event income(current_time + arr_period, 0);  //прибытие пачки
+					events.push(income);
+					last_arr_time = tmp.time;
+                }
+                else
+                	trace_ended = true;
+            }
         }
         else if (tmp.event_id == 1){ //If event is RES TRANSMISION
             last_res_time = tmp.time;    //Memorizing of last res event
             //DROPPING OLD PACKETS
-            for (std::list<Packet>::iterator it = packets.begin(); it != packets.end() && tmp.time - it->time > D;){
+            for (auto it = packets.begin(); it != packets.end() && tmp.time - it->time > delay_bound;){
                 it = packets.erase(it);
                 dPackets++;
             }
@@ -297,16 +304,20 @@ int main(int argc, char** argv)
             max_rand_time = reserve.time;            //THRESHOLD OF RANDOM TX END
             //1) IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
             //2) THERE IS PACKET WHICH WILL DIE TILL NEXT RESERVATION PERIOD
-            if ((rand_event.time + rand_tx_duration < max_rand_time) && (current_time - packets.front().time + T_res - D > 0))
+            if ((rand_event.time + rand_tx_duration <= max_rand_time) && (current_time - packets.front().time + res_period - delay_bound > 0))
                 events.push(rand_event);
         }
-        else
+        else //If event is RAND TRANSMISION
         {
             assert(tmp.event_id == 2);
-            //If event is RAND TRANSMISION
+            //DROPPING OLD PACKETS
+			for (auto it = packets.begin(); it != packets.end() && tmp.time - it->time > delay_bound;){
+				it = packets.erase(it);
+				dPackets++;
+			}
             if (!packets.empty()){    //IF QUEUE OF PACKETS ISN'T EMPTY
                 Packet random_packet = packets.front();    //THE EXPECTED TRANSMITTED PACKET
-                if (current_time - random_packet.time + T_res - D > 0){    //IF IT WILL DIE TILL NEXT RESERVATION PERIOD CORRECT!
+                if (last_res_time + res_period - random_packet.time - delay_bound > 0){    //IF IT WILL DIE TILL NEXT RESERVATION PERIOD
                     if (success(q_rand)){
                         packets.pop_front();
                         srandPackets++;
@@ -337,12 +348,13 @@ int main(int argc, char** argv)
                 break;
         }
 
-        batch_index += (age - current_age) / arr_period;
+        Time young_age = packets.back().time;
+        batch_index -= 1 + (young_age - age) / arr_period;
         current_age = last_res_time - current_age + res_period;
     }
     else{
         current_age = last_res_time - last_arr_time - arr_period + res_period;
-        batch_index = last_arr_time / T_in + 1;
+        batch_index = last_arr_time / arr_period + 1;
         if (batch_index <= n_batches)
             current_size = batch_stream[batch_index];
         else
