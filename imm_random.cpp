@@ -20,14 +20,14 @@ struct Parameters
     Time delay_bound;
     Time window_size;
     Time rand_tx_duration;
-	Time det_tx_duration;
-	Time mean_access_time;
-	Time h;
-	Time last_res_time; //will be used to write the time of last res_period in window
-	Time last_arr_time; //will be used to write the time of last arr_period in window
-	int current_size;
-	int number_of_batch;
-	std::string batchfile_path;
+    Time det_tx_duration;
+    Time mean_access_time;
+    Time h;
+    Time last_res_time; //will be used to write the time of last res_period in window
+    Time last_arr_time; //will be used to write the time of last arr_period in window
+    int current_size;
+    int number_of_batch;
+    std::string batchfile_path;
 
     double det_per;
     double ran_per;
@@ -112,9 +112,9 @@ Parameters ReadParameters(std::istream& input)
         else if (name == "ran_per")
             input >> params.ran_per;
         else if (name == "window_size")
-			input >> params.window_size;
+        	input >> params.window_size;
         else if (name == "seed")
-			input >> params.seed;
+        	input >> params.seed;
         else if (name == "rand_tx_duration")
 			input >> params.rand_tx_duration;
         else if (name == "det_tx_duration")
@@ -130,7 +130,7 @@ Parameters ReadParameters(std::istream& input)
         else if (name == "number_of_batch")
 			input >> params.number_of_batch;
         else if (name == "batchfile_path")
-			input >> params.batchfile_path;
+        	input >> params.batchfile_path;
         else
             assert(false);
     }
@@ -170,93 +170,87 @@ int main(int argc, char** argv)
     }
     params.CheckValues(); // Проверка корректности
 
-	int dPackets = 0; //dropped packets
-	int sPackets = 0; //successful packets
-	int srandPackets = 0; //successful packets in random access
+    int dPackets = 0; //dropped packets
+    int sPackets = 0; //successful packets
+    int srandPackets = 0; //successful packets in random access
 
-	srand(seed);
-	std::default_random_engine generator;
-	std::exponential_distribution<Time> rand_tx(1 / mean_access_time);
+    srand(seed);
+    std::default_random_engine generator;
+    std::exponential_distribution<Time> rand_tx(1 / mean_access_time);
 
-	std::priority_queue<Event> events;
-	std::list<Packet> packets;
-	std::vector<int> batch_stream;                                      // вектор размеров пачек
+    std::priority_queue<Event> events;
+    std::list<Packet> packets;
+    std::vector<int> batch_stream;                                      // вектор размеров пачек
 
-	std::ifstream ii(bacthfile_path.c_str());
-	int batch_size = 0;
-	int MAX_BATCH_SIZE = 100000000;
-	while(ii >> batch_size) {
-	    if (batch_size <= MAX_BATCH_SIZE){
-	    	batch_stream.push_back(batch_size);
-	        //std::cout << batch_size << '\n';
-	        }
-	    else{
-	    	batch_stream.push_back(MAX_BATCH_SIZE);
-	        //std::cout << M << '\n';
-	        }
-	}
+    std::ifstream ii(bacthfile_path.c_str());
+    int batch_size = 0;
+    int MAX_BATCH_SIZE = 100000000;
+    while(ii >> batch_size) {
+    	if (batch_size <= MAX_BATCH_SIZE){
+    		batch_stream.push_back(batch_size);
+    	}
+    	else
+    		batch_stream.push_back(MAX_BATCH_SIZE);
+    }
 
-	int n_batches = d.size();                           //число пачек
+    int n_batches = d.size();                           //число пачек
 
-	int cnt = 0; 		//счётчик событий поступления пачек
-	int cnt_res = 1;    //счётчик событий резервирования
-	int count = 0;      //индикатор того, что на этом моменте добавились пачки
+    int cnt = 0; 		//счётчик событий поступления пачек
+    int cnt_res = 1;    //счётчик событий резервирования
+    int count = 0;      //индикатор того, что на этом моменте добавились пачки
 
-	std::ofstream myfile(file.c_str(), std::ofstream::app);
+    Time max_rand_time = 0;
+    Time current_time = 0;
 
-	Time max_rand_time = 0;
-	Time current_time = 0;
-
-	if ((h == 0) && (number_of_batch == 0) && (current_size == 0)){
-		current_time = 0;
-		Event income(0 , 0);  //приход пачки
-		Event reserve(0 , 1); //начало передачи в зарезервированном интервале
-		events.push(income);
-		events.push(reserve);
-	}
-	else{
-		if (h >= 0){
-			current_time = h + number_of_batch * T_in;
-			Packet packet(current_time - h);
-			for (i = 0; i < current_size; i++)
-				packets.push_back(packet);
-			Time h1 = h - T_in;
-			Time h0 = T_in;
-			int number = number_of_batch;
-			while (h0 <= h1){
-				number++;
-				Packet packet(current_time - h1);
-				for (i = 0; i < d[number]; i++){
-					std::cout << i << '\t' << number << '\t';
-					packets.push_back(packet);
-				}
-				h0 += T_in;
-				std::cout << std::endl;
+    if ((h == 0) && (number_of_batch == 0) && (current_size == 0)){
+    	current_time = 0;
+    	Event income(0 , 0);  //приход пачки
+    	Event reserve(0 , 1); //начало передачи в зарезервированном интервале
+    	events.push(income);
+    	events.push(reserve);
+    }
+    else{
+    	if (h >= 0){
+    		current_time = h + number_of_batch * T_in;
+    		Packet packet(current_time - h);
+    		for (i = 0; i < current_size; i++)
+    			packets.push_back(packet);
+    		Time h1 = h - T_in;
+    		Time h0 = T_in;
+    		int number = number_of_batch;
+    		while (h0 <= h1){
+    			number++;
+    			Packet packet(current_time - h1);
+    			for (i = 0; i < d[number]; i++){
+    				std::cout << i << '\t' << number << '\t';
+    				packets.push_back(packet);
+    			}
+    			h0 += T_in;
 			}
-			cnt = floor(current_time / T_in);
-			Event income(last_arr_time + T_in, 0);
-			Event reserve(last_res_time + T_res, 1);
-			events.push(income);
-			events.push(reserve);
-		}
-		else{
-			cnt = last_arr_time / T_in;
-			current_time = h + number_of_batch * T_in;
-			Event income(last_arr_time + T_in, 0);
-			Event reserve(current_time + T_res, 1);
-			events.push(income);
-			events.push(reserve);
-		}
-	}
+    		cnt = floor(current_time / T_in);
+    		Event income(last_arr_time + T_in, 0);
+    		Event reserve(last_res_time + T_res, 1);
+    		events.push(income);
+    		events.push(reserve);
+    	}
+    	else{
+    		cnt = last_arr_time / T_in;
+    		current_time = h + number_of_batch * T_in;
+    		Event income(last_arr_time + T_in, 0);
+    		Event reserve(current_time + T_res, 1);
+    		events.push(income);
+    		events.push(reserve);
+    	}
+    }
 
-	simtime = window_size + current_time;
+    simtime = window_size + current_time;
 
-	Time CURRENT_TIME = 0;	//Memorize the last done event
-
-
+    Time CURRENT_TIME = 0;	//Memorize the last done event
 
 
-	double PLR;
+
+
+    double PLR;
 
 
 
