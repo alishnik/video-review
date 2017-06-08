@@ -29,10 +29,10 @@ struct Parameters
     int batch_index;
     int max_batch_size;
     std::string batchfile_path;
-
     double det_per;
     double ran_per;
     int seed;
+
     Parameters ()
         : res_period(-1)
         , arr_period(-1)
@@ -172,8 +172,7 @@ double success(double q){
     return ((double) rand() / (RAND_MAX)) > q; //Подбрасывание монетки, где q --- вероятность неудачи
 }
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv){
     // Откуда считывать?
     std::ifstream input;
     Parameters params;
@@ -205,6 +204,24 @@ int main(int argc, char** argv)
     }
     params.CheckValues(); // Проверка корректности
 
+    Time res_period = params.res_period;
+    Time arr_period = params.arr_period;
+    Time delay_bound = params.delay_bound;
+    Time window_size = params.window_size;
+    Time rand_tx_duration = params.rand_tx_duration;
+    Time det_tx_duration = params.det_tx_duration;
+    Time mean_access_time = params.mean_access_time;
+    Time current_age = params.current_age;
+    Time last_res_time = params.last_res_time;
+    Time last_arr_time = params.last_arr_time;
+    int current_size = params.current_size;
+    int batch_index = params.batch_index;
+    int max_batch_size = params.max_batch_size;
+    std::string batchfile_path = params.batchfile_path;
+    double det_per = params.det_per;
+    double ran_per = params.ran_per;
+    int seed = params.seed;
+
     int dPackets = 0; //dropped packets
     int sPackets = 0; //successful packets
     int srandPackets = 0; //successful packets in random access
@@ -216,8 +233,8 @@ int main(int argc, char** argv)
     std::priority_queue<Event> events;
     std::list<Packet> packets;
     std::vector<int> batch_stream;                                      // вектор размеров пачек
-
-    std::ifstream ii(bacthfile_path.c_str());
+    bool trace_ended = false;
+    std::ifstream ii(batchfile_path.c_str());
     int batch_size = 0;
     while(ii >> batch_size) {
         if (batch_size <= max_batch_size){
@@ -227,10 +244,7 @@ int main(int argc, char** argv)
             batch_stream.push_back(max_batch_size);
     }
 
-    int n_batches = batch_stream.size();                           //число пачек
-
     if ((current_age == 0) && (batch_index == 0) && (current_size == 0)){
-        current_time = 0;
         Event income(0 , 0);  //приход пачки
         Event reserve(0 , 1); //начало передачи в зарезервированном интервале
         events.push(income);
@@ -267,13 +281,12 @@ int main(int argc, char** argv)
             Event income(-curr_batch_age, 0);
             events.push(income);
         }
-        }
     }
 
-    simtime = window_size;
+    Time simtime = window_size;
     Time max_rand_time = 0;
     Time current_time = 0;
-    while (true){
+    while(true){
         Event tmp = events.top();        //Текущее событие
         if (tmp.time > simtime)            //Событие наступает за пределами окна
             break;
@@ -325,7 +338,7 @@ int main(int argc, char** argv)
             }
             //TRANSMISION IN RESERVED INTERVAL
             if (!packets.empty()){
-                if (success(q)){
+                if (success(det_per)){
                     packets.pop_front();
                     sPackets++;
                 }
@@ -351,7 +364,7 @@ int main(int argc, char** argv)
             if (!packets.empty()){    //IF QUEUE OF PACKETS ISN'T EMPTY
                 Packet random_packet = packets.front();    //THE EXPECTED TRANSMITTED PACKET
                 if (last_res_time + res_period - random_packet.time - delay_bound > 0){    //IF IT WILL DIE TILL NEXT RESERVATION PERIOD
-                    if (success(q_rand)){
+                    if (success(ran_per)){
                         packets.pop_front();
                         srandPackets++;
                     }
@@ -374,7 +387,7 @@ int main(int argc, char** argv)
         current_size = 1;
 
         while (1){
-            if (packets.front().time == age){
+            if (packets.front().time == time){
                 packets.pop_front();
                 current_size++;
             }
@@ -386,8 +399,8 @@ int main(int argc, char** argv)
     }
     else{
         current_age = last_res_time - last_arr_time - arr_period + res_period;
-        batch_index = batch_index
-        if (batch_index <= n_batches)
+        batch_index = batch_index;
+        if (batch_index <= batch_stream.size() - 1)
             current_size = batch_stream[batch_index];
         else
             current_size = 0;
