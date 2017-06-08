@@ -22,11 +22,12 @@ struct Parameters
     Time rand_tx_duration;
     Time det_tx_duration;
     Time mean_access_time;
-    Time h;
+    Time current_age;
     Time last_res_time; //will be used to write the time of last res_period in window
     Time last_arr_time; //will be used to write the time of last arr_period in window
     int current_size;
-    int number_of_batch;
+    int batch_index;
+    int MAX_BATCH_SIZE;
     std::string batchfile_path;
 
     double det_per;
@@ -43,11 +44,12 @@ struct Parameters
     	, rand_tx_duration(-1)
     	, det_tx_duration(-1)
     	, mean_access_time(-1)
-    	, h(-1)
+    	, current_age(-1)
     	, last_res_time(-1)
     	, last_arr_time(-1)
     	, current_size(-1)
-    	, number_of_batch(-1)
+    	, batch_index(-1)
+    	, MAX_BATCH_SIZE(-1)
     	, batchfile_path("")
         {}
 
@@ -63,11 +65,12 @@ struct Parameters
         assert (rand_tx_duration > 0);
         assert (det_tx_duration > 0);
         assert (rand_tx_duration + det_tx_duration <= res_period);
-        assert (h >= 0);
+        assert (current_age >= 0);
         assert (last_res_time >= 0);
         assert (last_arr_time >= 0);
         assert (current_size >=0);
-        assert (number_of_batch >=0);
+        assert (batch_index >=0);
+        assert (MAX_BATCH_SIZE > 0);
         assert (batchfile_path != "");
         return true;
     }
@@ -84,11 +87,11 @@ std::ostream& operator<< (std::ostream& output, const Parameters& params)
                   << "seed = " << params.seed << std::endl
                   << "rand_tx_duration = " << params.rand_tx_duration << std::endl
                   << "det_tx_duration = " << params.det_tx_duration << std::endl
-                  << "h = " << params.h << std::endl
+                  << "current_age = " << params.current_age << std::endl
                   << "last_res_time = " << params.last_res_time << std::endl
                   << "last_arr_time = " << params.last_arr_time << std::endl
                   << "current_size = " << params.current_size << std::endl
-                  << "number_of_batch = " << params.number_of_batch << std::endl
+                  << "batch_index = " << params.batch_index << std::endl
                   << "batchfile_path = " << params.batchfile_path
                   ;
     return output;
@@ -119,16 +122,16 @@ Parameters ReadParameters(std::istream& input)
 			input >> params.rand_tx_duration;
         else if (name == "det_tx_duration")
 			input >> params.det_tx_duration;
-        else if (name == "h")
-			input >> params.h;
+        else if (name == "current_age")
+			input >> params.current_age;
         else if (name == "last_res_time")
 			input >> params.last_res_time;
         else if (name == "last_arr_time")
 			input >> params.last_arr_time;
         else if (name == "current_size")
 			input >> params.current_size;
-        else if (name == "number_of_batch")
-			input >> params.number_of_batch;
+        else if (name == "batch_index")
+			input >> params.batch_index;
         else if (name == "batchfile_path")
         	input >> params.batchfile_path;
         else
@@ -184,7 +187,6 @@ int main(int argc, char** argv)
 
     std::ifstream ii(bacthfile_path.c_str());
     int batch_size = 0;
-    int MAX_BATCH_SIZE = 100000000;
     while(ii >> batch_size) {
     	if (batch_size <= MAX_BATCH_SIZE){
     		batch_stream.push_back(batch_size);
@@ -193,15 +195,14 @@ int main(int argc, char** argv)
     		batch_stream.push_back(MAX_BATCH_SIZE);
     }
 
-    int n_batches = d.size();                           //число пачек
+    int n_batches = batch_stream.size();                           //число пачек
 
-    int cnt = 0; 		//счётчик событий поступления пачек
-    int count = 0;      //индикатор того, что на этом моменте добавились пачки
+    int income_cnt = 0; 		//счётчик событий поступления пачек
 
     Time max_rand_time = 0;
     Time current_time = 0;
 
-    if ((h == 0) && (number_of_batch == 0) && (current_size == 0)){
+    if ((current_age == 0) && (batch_index == 0) && (current_size == 0)){
     	current_time = 0;
     	Event income(0 , 0);  //приход пачки
     	Event reserve(0 , 1); //начало передачи в зарезервированном интервале
@@ -209,40 +210,48 @@ int main(int argc, char** argv)
     	events.push(reserve);
     }
     else{
-    	if (h >= 0){
-    		current_time = h + number_of_batch * T_in;
-    		Packet packet(current_time - h);
-    		for (i = 0; i < current_size; i++)
-    			packets.push_back(packet);
-    		Time h1 = h - T_in;
-    		Time h0 = T_in;
-    		int number = number_of_batch;
-    		while (h0 <= h1){
-    			number++;
-    			Packet packet(current_time - h1);
-    			for (i = 0; i < d[number]; i++){
-    				std::cout << i << '\t' << number << '\t';
-    				packets.push_back(packet);
+    	if (current_age >= 0){
+    		int curr_batch_size = current_size;
+    		int curr_batch_index = batch_index;
+    		Time curr_batch_age = current_age;
+    		trace_ended = false;
+    		while( curr_batch_size >= 0){
+    			for (int i = 0; i < curr_batch_size; ++i)
+    			packets.push_back(Packet(-curr_batch_age));
+
+    			curr_batch_age -= T_in;
+    			curr_batch_index += 1;
+
+    			if (curr_batch_index < batch_stream.size() - 1) {
+    				curr_batch_size = batch_stream[curr_batch_index];
     			}
-    			h0 += T_in;
-			}
-    		cnt = floor(current_time / T_in);
-    		Event income(last_arr_time + T_in, 0);
-    		Event reserve(last_res_time + T_res, 1);
-    		events.push(income);
-    		events.push(reserve);
+    			else{
+    				curr_batch_size = -1;
+    				trace_ended = true;
+    			}
+    			if (trace_ended)
+    				break;
+    			}
+    			if (!trace_ended){
+    				Event income( arr_period - current_age, 0);	//НЕ УВЕРЕН
+    				Event reserve( res_period - current_age, 1);
+    				events.push(income);
+					events.push(reserve);
+    			}
+    		}
+    		income_cnt = batch_index + 1;
     	}
     	else{
-    		cnt = last_arr_time / T_in;
-    		current_time = h + number_of_batch * T_in;
-    		Event income(last_arr_time + T_in, 0);
-    		Event reserve(current_time + T_res, 1);
+    		income_cnt = batch_index;
+    		current_time = current_age + batch_index * T_in;
+    		Event income(last_arr_time + T_in, 0);	//ХЗ
+    		Event reserve(current_age, 1);			//НЕ УВЕРЕН
     		events.push(income);
     		events.push(reserve);
     	}
     }
 
-    simtime = window_size + current_time;
+    simtime = window_size;
 
     while (true){
     	Event tmp = events.top();		//Текущее событие
@@ -271,12 +280,12 @@ int main(int argc, char** argv)
     	//Processing of IMITATION
     	if(tmp.event_id == 0){  //If event is INCOME
     		Packet packet(tmp.time);
-    		for(i = 0; i < d[cnt % n_batches]; i++){
+    		for(i = 0; i < batch_stream[income_cnt % n_batches]; i++){
     			packets.push_back(packet);
     		}
-    		cnt++;              //переход к следующей пачке на новой итерации
+    		income_cnt++;              //переход к следующей пачке на новой итерации
 
-    		Event income(cnt * T_in, 0);  //прибытие пачки
+    		Event income(current_time + arr_period, 0);  //прибытие пачки
     		events.push(income);
     		last_arr_time = tmp.time;
     	}
@@ -294,9 +303,9 @@ int main(int argc, char** argv)
     				sPackets++;
     			}
     		}
-    		//SCHEDULING RAND ACCESS IF THERE IS PACKET IN QUEUE WITH AGE h > D - T_res
+    		//SCHEDULING RAND ACCESS IF THERE IS PACKET IN QUEUE WITH AGE current_age > D - T_res
     		Event rand_event(current_time + det_tx_duration + rand_tx(generator) , 2); //EVENT OF TX IN RANDOM ACCESS
-    		Event reserve(tmp.time + T_res, 1);	//EVENT OF NEW RESERVATION PERIOD
+    		Event reserve(current_time + res_period, 1);	//EVENT OF NEW RESERVATION PERIOD
     		events.push(reserve);	//ADDING EVENT OF NEW RESERVATION PERIOD
     		max_rand_time = reserve.time;			//THRESHOLD OF RANDOM TX END
     		//1) IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
@@ -325,8 +334,45 @@ int main(int argc, char** argv)
     	std::cout << "dropped: " << dPackets << "\tSuccess:\t" << sPackets + srandPackets<< std::endl << std::endl;
     }
 
+    double PLR = static_cast<double>(dPackets) / (srandPackets + sPackets + dPackets);
 
-    double PLR;
+    if (!packets.empty()){
+    	age = packets.front().time;
+    	packets.pop_front();
+    	current_size = 1;
+
+    	while (1){
+    		if (packets.front().time == age){
+    			packets.pop_front();
+    			current_size++;
+    		}
+    		else
+    			break;
+    	}
+
+    	batch_index += (age - current_age) / arr_period;
+    	current_age = last_res_time - current_age + res_period;
+    }
+    else{
+    	current_age = last_res_time - last_arr_time - arr_period + res_period;
+    	batch_index = last_arr_time / T_in + 1;
+    	if (batch_index <= n_batches)
+    		current_size = batch_stream[batch_index];
+    	else
+    		current_size = 0;
+    }
+
+    std::string output_file = "state.txt";
+    std::ofstream output(output_file.c_str(), std::ofstream::out);
+    if ((output.is_open()) && (State_file != "")){
+    	output <<
+    			age << std::endl <<
+    			current_size << std::endl <<
+    			number_of_batch << std::endl <<
+    			last_res_time << std::endl <<
+    			last_arr_time;
+    	output.close();
+    }
 
 
 
