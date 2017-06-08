@@ -157,7 +157,11 @@ struct Event {
 
 struct Packet{
     Time time;
-    Packet (Time x) : time(x) {}
+    int index;
+    Packet (Time x, int y)
+        : time(x)
+        , index(y)
+    {}
     bool operator< (const Packet& a) const
     {
         return time < a.time;
@@ -239,7 +243,7 @@ int main(int argc, char** argv)
         trace_ended = false;
         while( curr_batch_age >= 0){
             for (int i = 0; i < curr_batch_size; ++i)
-                packets.push_back(Packet(-curr_batch_age));
+                packets.push_back(Packet(-curr_batch_age, curr_batch_index));
 
             curr_batch_age -= arr_period;
             curr_batch_index += 1;
@@ -297,7 +301,7 @@ int main(int argc, char** argv)
         if(tmp.event_id == 0){  //If event is INCOME
             if (!trace_ended){
                 if (batch_index < batch_stream.size() - 1){
-                    Packet packet(tmp.time);
+                    Packet packet(tmp.time, batch_index);
                     for(int i = 0; i < batch_stream[batch_index]; i++){
                         packets.push_back(packet);
                     }
@@ -309,6 +313,7 @@ int main(int argc, char** argv)
                 }
                 else
                     trace_ended = true;
+
             }
         }
         else if (tmp.event_id == 1){ //If event is RES TRANSMISION
@@ -363,7 +368,8 @@ int main(int argc, char** argv)
     double PLR = static_cast<double>(dPackets) / (srandPackets + sPackets + dPackets);
 
     if (!packets.empty()){
-        age = packets.front().time;
+        Time time = packets.front().time;
+        int index = packets.front().index;
         packets.pop_front();
         current_size = 1;
 
@@ -375,14 +381,12 @@ int main(int argc, char** argv)
             else
                 break;
         }
-
-        Time young_age = packets.back().time;
-        batch_index -= 1 + (young_age - age) / arr_period;
+        batch_index = index;
         current_age = last_res_time - current_age + res_period;
     }
     else{
         current_age = last_res_time - last_arr_time - arr_period + res_period;
-        batch_index = last_arr_time / arr_period + 1;
+        batch_index = batch_index
         if (batch_index <= n_batches)
             current_size = batch_stream[batch_index];
         else
@@ -390,20 +394,24 @@ int main(int argc, char** argv)
     }
 
 
-    std::cout << "res_period = " << params.res_period << std::endl
-              << "arr_period = " << params.arr_period << std::endl
-              << "delay_bound = " << params.delay_bound << std::endl
-              << "det_per = " << params.det_per << std::endl
-              << "ran_per = " << params.ran_per << std::endl
-              << "window_size = " << params.window_size << std::endl
-              << "seed = " << params.seed << std::endl
-              << "rand_tx_duration = " << params.rand_tx_duration << std::endl
-              << "det_tx_duration = " << params.det_tx_duration << std::endl
-              << "mean_access_time = " << params.mean_access_time << std::endl
-              << "batchfile_path = " << params.batchfile_path << std::endl
-              << "current_age = " << params.current_age << std::endl
-              << "current_size = " << params.current_size << std::endl
-              << "batch_index = " << params.batch_index
+    std::cout << "res_period = " << res_period << std::endl
+              << "arr_period = " << arr_period << std::endl
+              << "delay_bound = " << delay_bound << std::endl
+              << "det_per = " << det_per << std::endl
+              << "ran_per = " << ran_per << std::endl
+              << "window_size = " << window_size << std::endl
+              << "seed = " << seed << std::endl
+              << "rand_tx_duration = " << rand_tx_duration << std::endl
+              << "det_tx_duration = " << det_tx_duration << std::endl
+              << "mean_access_time = " << mean_access_time << std::endl
+              << "batchfile_path = " << batchfile_path << std::endl
+              << "current_age = " << current_age << std::endl
+              << "current_size = " << current_size << std::endl
+              << "batch_index = " << batch_index << std::endl
+              << "dPackets = " << dPackets << std::endl
+              << "sPackets = " << sPackets << std::endl
+              << "srandPackets = " << srandPackets << std::endl
+              << "PLR = " << PLR << std::endl
               ;
 
     return 0;
