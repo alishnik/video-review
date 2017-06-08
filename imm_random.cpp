@@ -196,7 +196,6 @@ int main(int argc, char** argv)
     int n_batches = d.size();                           //число пачек
 
     int cnt = 0; 		//счётчик событий поступления пачек
-    int cnt_res = 1;    //счётчик событий резервирования
     int count = 0;      //индикатор того, что на этом моменте добавились пачки
 
     Time max_rand_time = 0;
@@ -245,9 +244,86 @@ int main(int argc, char** argv)
 
     simtime = window_size + current_time;
 
-    Time CURRENT_TIME = 0;	//Memorize the last done event
+    while (true){
+    	Event tmp = events.top();		//Текущее событие
+    	if (tmp.time > simtime)			//Событие наступает за пределами окна
+    		break;
+    	current_time = tmp.time;		//Текущее время, на выходе из цикла будет записано время последнего события
 
+    	//FOR DEBUG
+    	std::cout << std::fixed << "the time is " << current_time << std::endl;
+    	std::cout << "events: ";
+    	std::priority_queue<Event> copy_events(events);
+    		while(!copy_events.empty()){
+    			std::cout << copy_events.top().time << ',' << copy_events.top().event_id << "\t";
+    			copy_events.pop();
+    		}
+    		std::cout << '\n';
 
+    	events.pop();
+
+    	std::cout << "packets: ";
+    	for (std::list<Packet>::iterator it = packets.begin(); it != packets.end(); it++)
+    		std::cout << it->time << "\t";
+    	std::cout << '\n';
+    	//End FOR DEBUG
+
+    	//Processing of IMITATION
+    	if(tmp.event_id == 0){  //If event is INCOME
+    		Packet packet(tmp.time);
+    		for(i = 0; i < d[cnt % n_batches]; i++){
+    			packets.push_back(packet);
+    		}
+    		cnt++;              //переход к следующей пачке на новой итерации
+
+    		Event income(cnt * T_in, 0);  //прибытие пачки
+    		events.push(income);
+    		last_arr_time = tmp.time;
+    	}
+    	else if (tmp.event_id == 1){ //If event is RES TRANSMISION
+    		last_res_time = tmp.time;	//Memorizing of last res event
+    		//DROPPING OLD PACKETS
+    		for (std::list<Packet>::iterator it = packets.begin(); it != packets.end() && tmp.time - it->time > D;){
+    			it = packets.erase(it);
+    			dPackets++;
+    		}
+    		//TRANSMISION IN RESERVED INTERVAL
+    		if (!packets.empty()){
+    			if (success(q)){
+    				packets.pop_front();
+    				sPackets++;
+    			}
+    		}
+    		//SCHEDULING RAND ACCESS IF THERE IS PACKET IN QUEUE WITH AGE h > D - T_res
+    		Event rand_event(current_time + det_tx_duration + rand_tx(generator) , 2); //EVENT OF TX IN RANDOM ACCESS
+    		Event reserve(tmp.time + T_res, 1);	//EVENT OF NEW RESERVATION PERIOD
+    		events.push(reserve);	//ADDING EVENT OF NEW RESERVATION PERIOD
+    		max_rand_time = reserve.time;			//THRESHOLD OF RANDOM TX END
+    		//1) IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
+    		//2) THERE IS PACKET WHICH WILL DIE TILL NEXT RESERVATION PERIOD
+    		if ((rand_event.time + rand_tx_duration < max_rand_time) && (current_time - packets.front().time + T_res - D > 0))
+    			events.push(rand_event);
+    	}
+    	else
+    	{
+    		assert(tmp.event_id == 2);
+    		//If event is RAND TRANSMISION
+    		if (!packets.empty()){	//IF QUEUE OF PACKETS ISN'T EMPTY
+    			Packet random_packet = packets.front();	//THE EXPECTED TRANSMITTED PACKET
+    			if (current_time - random_packet.time + T_res - D > 0){	//IF IT WILL DIE TILL NEXT RESERVATION PERIOD CORRECT!
+    				if (success(q_rand)){
+    					packets.pop_front();
+    					srandPackets++;
+    				}
+    				Event rand_event(current_time + rand_tx_duration + rand_tx(generator) , 2); //EVENT OF TX IN RANDOM ACCESS
+    				if (rand_event.time + rand_tx_duration < max_rand_time)
+    					events.push(rand_event); //IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
+    			}
+    		}
+    	}
+    	//FOR DEBUG
+    	std::cout << "dropped: " << dPackets << "\tSuccess:\t" << sPackets + srandPackets<< std::endl << std::endl;
+    }
 
 
     double PLR;
