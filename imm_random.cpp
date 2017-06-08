@@ -37,20 +37,20 @@ struct Parameters
         : res_period(-1)
         , arr_period(-1)
         , delay_bound(-1)
-    	, window_size(-1)
+        , window_size(-1)
         , det_per(-1)
         , ran_per(-1)
-    	, seed(-1)
-    	, rand_tx_duration(-1)
-    	, det_tx_duration(-1)
-    	, mean_access_time(-1)
-    	, current_age(-1)
-    	, last_res_time(-1)
-    	, last_arr_time(-1)
-    	, current_size(-1)
-    	, batch_index(-1)
-    	, MAX_BATCH_SIZE(-1)
-    	, batchfile_path("")
+        , seed(-1)
+        , rand_tx_duration(-1)
+        , det_tx_duration(-1)
+        , mean_access_time(-1)
+        , current_age(-1)
+        , last_res_time(-1)
+        , last_arr_time(-1)
+        , current_size(-1)
+        , batch_index(-1)
+        , MAX_BATCH_SIZE(-1)
+        , batchfile_path("")
         {}
 
     bool CheckValues()
@@ -115,25 +115,25 @@ Parameters ReadParameters(std::istream& input)
         else if (name == "ran_per")
             input >> params.ran_per;
         else if (name == "window_size")
-        	input >> params.window_size;
+            input >> params.window_size;
         else if (name == "seed")
-        	input >> params.seed;
+            input >> params.seed;
         else if (name == "rand_tx_duration")
-			input >> params.rand_tx_duration;
+            input >> params.rand_tx_duration;
         else if (name == "det_tx_duration")
-			input >> params.det_tx_duration;
+            input >> params.det_tx_duration;
         else if (name == "current_age")
-			input >> params.current_age;
+            input >> params.current_age;
         else if (name == "last_res_time")
-			input >> params.last_res_time;
+            input >> params.last_res_time;
         else if (name == "last_arr_time")
-			input >> params.last_arr_time;
+            input >> params.last_arr_time;
         else if (name == "current_size")
-			input >> params.current_size;
+            input >> params.current_size;
         else if (name == "batch_index")
-			input >> params.batch_index;
+            input >> params.batch_index;
         else if (name == "batchfile_path")
-        	input >> params.batchfile_path;
+            input >> params.batchfile_path;
         else
             assert(false);
     }
@@ -152,13 +152,13 @@ int main(int argc, char** argv)
         assert(input.fail());
         params = ReadParameters(input);
     }
-    else if (argc == 2)	//specified file
+    else if (argc == 2)    //specified file
     {
         input.open(argv[1]);
         assert(input.fail());
         params = ReadParameters(input);
     }
-    else	//read from line
+    else    //read from line
     {
         std::stringstream ss;
         for (int i = 1; i < argc; ++i)
@@ -188,190 +188,177 @@ int main(int argc, char** argv)
     std::ifstream ii(bacthfile_path.c_str());
     int batch_size = 0;
     while(ii >> batch_size) {
-    	if (batch_size <= MAX_BATCH_SIZE){
-    		batch_stream.push_back(batch_size);
-    	}
-    	else
-    		batch_stream.push_back(MAX_BATCH_SIZE);
+        if (batch_size <= MAX_BATCH_SIZE){
+            batch_stream.push_back(batch_size);
+        }
+        else
+            batch_stream.push_back(MAX_BATCH_SIZE);
     }
 
     int n_batches = batch_stream.size();                           //число пачек
 
-    int income_cnt = 0; 		//счётчик событий поступления пачек
-
-    Time max_rand_time = 0;
-    Time current_time = 0;
-
     if ((current_age == 0) && (batch_index == 0) && (current_size == 0)){
-    	current_time = 0;
-    	Event income(0 , 0);  //приход пачки
-    	Event reserve(0 , 1); //начало передачи в зарезервированном интервале
-    	events.push(income);
-    	events.push(reserve);
+        current_time = 0;
+        Event income(0 , 0);  //приход пачки
+        Event reserve(0 , 1); //начало передачи в зарезервированном интервале
+        events.push(income);
+        events.push(reserve);
     }
     else{
-    	if (current_age >= 0){
-    		int curr_batch_size = current_size;
-    		int curr_batch_index = batch_index;
-    		Time curr_batch_age = current_age;
-    		trace_ended = false;
-    		while( curr_batch_size >= 0){
-    			for (int i = 0; i < curr_batch_size; ++i)
-    			packets.push_back(Packet(-curr_batch_age));
+        int curr_batch_size = current_size;
+        int curr_batch_index = batch_index;
+        Time curr_batch_age = current_age;
+        trace_ended = false;
+        while( curr_batch_age >= 0){
+            for (int i = 0; i < curr_batch_size; ++i)
+            packets.push_back(Packet(-curr_batch_age));
 
-    			curr_batch_age -= T_in;
-    			curr_batch_index += 1;
+            curr_batch_age -= T_in;
+            curr_batch_index += 1;
 
-    			if (curr_batch_index < batch_stream.size() - 1) {
-    				curr_batch_size = batch_stream[curr_batch_index];
-    			}
-    			else{
-    				curr_batch_size = -1;
-    				trace_ended = true;
-    			}
-    			if (trace_ended)
-    				break;
-    			}
-    			if (!trace_ended){
-    				Event income( arr_period - current_age, 0);	//НЕ УВЕРЕН
-    				Event reserve( res_period - current_age, 1);
-    				events.push(income);
-					events.push(reserve);
-    			}
-    		}
-    		income_cnt = batch_index + 1;
-    	}
-    	else{
-    		income_cnt = batch_index;
-    		current_time = current_age + batch_index * T_in;
-    		Event income(last_arr_time + T_in, 0);	//ХЗ
-    		Event reserve(current_age, 1);			//НЕ УВЕРЕН
-    		events.push(income);
-    		events.push(reserve);
-    	}
+            if (curr_batch_index < batch_stream.size() - 1)
+                curr_batch_size = batch_stream[curr_batch_index];
+            else{
+                curr_batch_size = -1;
+                trace_ended = true;
+            }
+            if (trace_ended)
+                break;
+        }
+        if (curr_batch_index >= batch_stream.size() - 1)
+            trace_ended = true;
+
+        if (!trace_ended){
+            Event income(-curr_batch_age + arr_period, 0);
+            Event reserve(0, 1);
+            events.push(income);
+            events.push(reserve);
+        }
+        }
     }
 
     simtime = window_size;
-
+    Time max_rand_time = 0;
+    Time current_time = 0;
     while (true){
-    	Event tmp = events.top();		//Текущее событие
-    	if (tmp.time > simtime)			//Событие наступает за пределами окна
-    		break;
-    	current_time = tmp.time;		//Текущее время, на выходе из цикла будет записано время последнего события
+        Event tmp = events.top();        //Текущее событие
+        if (tmp.time > simtime)            //Событие наступает за пределами окна
+            break;
+        current_time = tmp.time;        //Текущее время, на выходе из цикла будет записано время последнего события
 
-    	//FOR DEBUG
-    	std::cout << std::fixed << "the time is " << current_time << std::endl;
-    	std::cout << "events: ";
-    	std::priority_queue<Event> copy_events(events);
-    		while(!copy_events.empty()){
-    			std::cout << copy_events.top().time << ',' << copy_events.top().event_id << "\t";
-    			copy_events.pop();
-    		}
-    		std::cout << '\n';
+        //FOR DEBUG
+        std::cout << std::fixed << "the time is " << current_time << std::endl;
+        std::cout << "events: ";
+        std::priority_queue<Event> copy_events(events);
+            while(!copy_events.empty()){
+                std::cout << copy_events.top().time << ',' << copy_events.top().event_id << "\t";
+                copy_events.pop();
+            }
+            std::cout << '\n';
 
-    	events.pop();
+        events.pop();
 
-    	std::cout << "packets: ";
-    	for (std::list<Packet>::iterator it = packets.begin(); it != packets.end(); it++)
-    		std::cout << it->time << "\t";
-    	std::cout << '\n';
-    	//End FOR DEBUG
+        std::cout << "packets: ";
+        for (std::list<Packet>::iterator it = packets.begin(); it != packets.end(); it++)
+            std::cout << it->time << "\t";
+        std::cout << '\n';
+        //End FOR DEBUG
 
-    	//Processing of IMITATION
-    	if(tmp.event_id == 0){  //If event is INCOME
-    		Packet packet(tmp.time);
-    		for(i = 0; i < batch_stream[income_cnt % n_batches]; i++){
-    			packets.push_back(packet);
-    		}
-    		income_cnt++;              //переход к следующей пачке на новой итерации
+        //Processing of IMITATION
+        if(tmp.event_id == 0){  //If event is INCOME
+            Packet packet(tmp.time);
+            for(i = 0; i < batch_stream[bacth_index % n_batches]; i++){
+                packets.push_back(packet);
+            }
+            batch_index++;              //переход к следующей пачке на новой итерации
 
-    		Event income(current_time + arr_period, 0);  //прибытие пачки
-    		events.push(income);
-    		last_arr_time = tmp.time;
-    	}
-    	else if (tmp.event_id == 1){ //If event is RES TRANSMISION
-    		last_res_time = tmp.time;	//Memorizing of last res event
-    		//DROPPING OLD PACKETS
-    		for (std::list<Packet>::iterator it = packets.begin(); it != packets.end() && tmp.time - it->time > D;){
-    			it = packets.erase(it);
-    			dPackets++;
-    		}
-    		//TRANSMISION IN RESERVED INTERVAL
-    		if (!packets.empty()){
-    			if (success(q)){
-    				packets.pop_front();
-    				sPackets++;
-    			}
-    		}
-    		//SCHEDULING RAND ACCESS IF THERE IS PACKET IN QUEUE WITH AGE current_age > D - T_res
-    		Event rand_event(current_time + det_tx_duration + rand_tx(generator) , 2); //EVENT OF TX IN RANDOM ACCESS
-    		Event reserve(current_time + res_period, 1);	//EVENT OF NEW RESERVATION PERIOD
-    		events.push(reserve);	//ADDING EVENT OF NEW RESERVATION PERIOD
-    		max_rand_time = reserve.time;			//THRESHOLD OF RANDOM TX END
-    		//1) IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
-    		//2) THERE IS PACKET WHICH WILL DIE TILL NEXT RESERVATION PERIOD
-    		if ((rand_event.time + rand_tx_duration < max_rand_time) && (current_time - packets.front().time + T_res - D > 0))
-    			events.push(rand_event);
-    	}
-    	else
-    	{
-    		assert(tmp.event_id == 2);
-    		//If event is RAND TRANSMISION
-    		if (!packets.empty()){	//IF QUEUE OF PACKETS ISN'T EMPTY
-    			Packet random_packet = packets.front();	//THE EXPECTED TRANSMITTED PACKET
-    			if (current_time - random_packet.time + T_res - D > 0){	//IF IT WILL DIE TILL NEXT RESERVATION PERIOD CORRECT!
-    				if (success(q_rand)){
-    					packets.pop_front();
-    					srandPackets++;
-    				}
-    				Event rand_event(current_time + rand_tx_duration + rand_tx(generator) , 2); //EVENT OF TX IN RANDOM ACCESS
-    				if (rand_event.time + rand_tx_duration < max_rand_time)
-    					events.push(rand_event); //IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
-    			}
-    		}
-    	}
-    	//FOR DEBUG
-    	std::cout << "dropped: " << dPackets << "\tSuccess:\t" << sPackets + srandPackets<< std::endl << std::endl;
+            Event income(current_time + arr_period, 0);  //прибытие пачки
+            events.push(income);
+            last_arr_time = tmp.time;
+        }
+        else if (tmp.event_id == 1){ //If event is RES TRANSMISION
+            last_res_time = tmp.time;    //Memorizing of last res event
+            //DROPPING OLD PACKETS
+            for (std::list<Packet>::iterator it = packets.begin(); it != packets.end() && tmp.time - it->time > D;){
+                it = packets.erase(it);
+                dPackets++;
+            }
+            //TRANSMISION IN RESERVED INTERVAL
+            if (!packets.empty()){
+                if (success(q)){
+                    packets.pop_front();
+                    sPackets++;
+                }
+            }
+            //SCHEDULING RAND ACCESS IF THERE IS PACKET IN QUEUE WITH AGE current_age > D - T_res
+            Event rand_event(current_time + det_tx_duration + rand_tx(generator) , 2); //EVENT OF TX IN RANDOM ACCESS
+            Event reserve(current_time + res_period, 1);    //EVENT OF NEW RESERVATION PERIOD
+            events.push(reserve);    //ADDING EVENT OF NEW RESERVATION PERIOD
+            max_rand_time = reserve.time;            //THRESHOLD OF RANDOM TX END
+            //1) IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
+            //2) THERE IS PACKET WHICH WILL DIE TILL NEXT RESERVATION PERIOD
+            if ((rand_event.time + rand_tx_duration < max_rand_time) && (current_time - packets.front().time + T_res - D > 0))
+                events.push(rand_event);
+        }
+        else
+        {
+            assert(tmp.event_id == 2);
+            //If event is RAND TRANSMISION
+            if (!packets.empty()){    //IF QUEUE OF PACKETS ISN'T EMPTY
+                Packet random_packet = packets.front();    //THE EXPECTED TRANSMITTED PACKET
+                if (current_time - random_packet.time + T_res - D > 0){    //IF IT WILL DIE TILL NEXT RESERVATION PERIOD CORRECT!
+                    if (success(q_rand)){
+                        packets.pop_front();
+                        srandPackets++;
+                    }
+                    Event rand_event(current_time + rand_tx_duration + rand_tx(generator) , 2); //EVENT OF TX IN RANDOM ACCESS
+                    if (rand_event.time + rand_tx_duration < max_rand_time)
+                        events.push(rand_event); //IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
+                }
+            }
+        }
+        //FOR DEBUG
+        std::cout << "dropped: " << dPackets << "\tSuccess:\t" << sPackets + srandPackets<< std::endl << std::endl;
     }
 
     double PLR = static_cast<double>(dPackets) / (srandPackets + sPackets + dPackets);
 
     if (!packets.empty()){
-    	age = packets.front().time;
-    	packets.pop_front();
-    	current_size = 1;
+        age = packets.front().time;
+        packets.pop_front();
+        current_size = 1;
 
-    	while (1){
-    		if (packets.front().time == age){
-    			packets.pop_front();
-    			current_size++;
-    		}
-    		else
-    			break;
-    	}
+        while (1){
+            if (packets.front().time == age){
+                packets.pop_front();
+                current_size++;
+            }
+            else
+                break;
+        }
 
-    	batch_index += (age - current_age) / arr_period;
-    	current_age = last_res_time - current_age + res_period;
+        batch_index += (age - current_age) / arr_period;
+        current_age = last_res_time - current_age + res_period;
     }
     else{
-    	current_age = last_res_time - last_arr_time - arr_period + res_period;
-    	batch_index = last_arr_time / T_in + 1;
-    	if (batch_index <= n_batches)
-    		current_size = batch_stream[batch_index];
-    	else
-    		current_size = 0;
+        current_age = last_res_time - last_arr_time - arr_period + res_period;
+        batch_index = last_arr_time / T_in + 1;
+        if (batch_index <= n_batches)
+            current_size = batch_stream[batch_index];
+        else
+            current_size = 0;
     }
 
     std::string output_file = "state.txt";
     std::ofstream output(output_file.c_str(), std::ofstream::out);
     if ((output.is_open()) && (State_file != "")){
-    	output <<
-    			age << std::endl <<
-    			current_size << std::endl <<
-    			number_of_batch << std::endl <<
-    			last_res_time << std::endl <<
-    			last_arr_time;
-    	output.close();
+        output <<
+                age << std::endl <<
+                current_size << std::endl <<
+                number_of_batch << std::endl <<
+                last_res_time << std::endl <<
+                last_arr_time;
+        output.close();
     }
 
 
