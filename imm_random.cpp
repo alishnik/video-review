@@ -32,6 +32,7 @@ struct Parameters
     double det_per;
     double ran_per;
     int seed;
+    bool random_on;
 
     Parameters ()
         : res_period(-1)
@@ -51,6 +52,7 @@ struct Parameters
         , batch_index(-1)
         , max_batch_size(-1)
         , batchfile_path("")
+        , random_on(true)
         {}
 
     bool CheckValues()
@@ -71,26 +73,28 @@ struct Parameters
         assert (batch_index >=0);
         assert (max_batch_size > 0);
         assert (batchfile_path != "");
+        assert ((random_on == true) || (random_on == false));
         return true;
     }
 };
 
 std::ostream& operator<< (std::ostream& output, const Parameters& params)
 {
-    output << "res_period = " << params.res_period << std::endl
-                  << "arr_period = " << params.arr_period << std::endl
-                  << "delay_bound = " << params.delay_bound << std::endl
-                  << "det_per = " << params.det_per << std::endl
-                  << "ran_per = " << params.ran_per << std::endl
-                  << "window_size = " << params.window_size << std::endl
-                  << "seed = " << params.seed << std::endl
-                  << "rand_tx_duration = " << params.rand_tx_duration << std::endl
-                  << "det_tx_duration = " << params.det_tx_duration << std::endl
-                  << "mean_access_time = " << params.mean_access_time << std::endl
-                  << "current_age = " << params.current_age << std::endl
-                  << "current_size = " << params.current_size << std::endl
-                  << "batch_index = " << params.batch_index << std::endl
-                  << "batchfile_path = " << params.batchfile_path
+    output << "res_period " << params.res_period << std::endl
+                  << "arr_period " << params.arr_period << std::endl
+                  << "delay_bound " << params.delay_bound << std::endl
+                  << "det_per " << params.det_per << std::endl
+                  << "ran_per " << params.ran_per << std::endl
+                  << "window_size " << params.window_size << std::endl
+                  << "seed " << params.seed << std::endl
+                  << "rand_tx_duration " << params.rand_tx_duration << std::endl
+                  << "det_tx_duration " << params.det_tx_duration << std::endl
+                  << "mean_access_time " << params.mean_access_time << std::endl
+                  << "current_age " << params.current_age << std::endl
+                  << "current_size " << params.current_size << std::endl
+                  << "batch_index " << params.batch_index << std::endl
+                  << "batchfile_path " << params.batchfile_path << std::endl
+                  << "random_on " << params.random_on
                   ;
     return output;
 }
@@ -102,12 +106,15 @@ Parameters ReadParameters(std::istream& input)
     while (!input.eof())
     {
         input >> name;
-        if (name == "res_period")
+        if (name == "res_period"){
             input >> params.res_period;
-        else if (name == "arr_period")
+            std::cout << "eee1" <<std::endl;}
+        else if (name == "arr_period"){
             input >> params.arr_period;
-        else if (name == "delay_bound")
+            std::cout << "eee2" <<std::endl;}
+        else if (name == "delay_bound"){
             input >> params.delay_bound;
+            std::cout << "eee3" <<std::endl;}
         else if (name == "det_per")
             input >> params.det_per;
         else if (name == "ran_per")
@@ -130,6 +137,10 @@ Parameters ReadParameters(std::istream& input)
             input >> params.batch_index;
         else if (name == "batchfile_path")
             input >> params.batchfile_path;
+        else if (name == "max_batch_size")
+            input >> params.max_batch_size;
+        else if (name == "random_on")
+            input >> params.random_on;
         else
             assert(false);
     }
@@ -169,11 +180,11 @@ struct Packet{
 };
 
 double success(double q){
-    return ((double) rand() / (RAND_MAX)) > q; //Подбрасывание монетки, где q --- вероятность неудачи
+    return ((double) rand() / (RAND_MAX)) > q; //Ïîäáðàñûâàíèå ìîíåòêè, ãäå q --- âåðîÿòíîñòü íåóäà÷è
 }
 
 int main(int argc, char** argv){
-    // Откуда считывать?
+    // Where to read?
     std::ifstream input;
     Parameters params;
 
@@ -186,7 +197,7 @@ int main(int argc, char** argv){
     else if (argc == 2)    //specified file
     {
         input.open(argv[1]);
-        assert(input.fail());
+        assert(!input.fail());
         params = ReadParameters(input);
     }
     else    //read from line
@@ -202,7 +213,7 @@ int main(int argc, char** argv){
         }
         params = ReadParameters(ss);
     }
-    params.CheckValues(); // Проверка корректности
+    params.CheckValues(); // Check params
 
     Time res_period = params.res_period;
     Time arr_period = params.arr_period;
@@ -221,6 +232,7 @@ int main(int argc, char** argv){
     double det_per = params.det_per;
     double ran_per = params.ran_per;
     int seed = params.seed;
+    bool random_on = params.random_on;
 
     int dPackets = 0; //dropped packets
     int sPackets = 0; //successful packets
@@ -232,7 +244,7 @@ int main(int argc, char** argv){
 
     std::priority_queue<Event> events;
     std::list<Packet> packets;
-    std::vector<int> batch_stream;                                      // вектор размеров пачек
+    std::vector<int> batch_stream;                                      // video stream
     bool trace_ended = false;
     std::ifstream ii(batchfile_path.c_str());
     int batch_size = 0;
@@ -245,8 +257,8 @@ int main(int argc, char** argv){
     }
 
     if ((current_age == 0) && (batch_index == 0) && (current_size == 0)){
-        Event income(0 , 0);  //приход пачки
-        Event reserve(0 , 1); //начало передачи в зарезервированном интервале
+        Event income(0 , 0);  //ïðèõîä ïà÷êè
+        Event reserve(0 , 1); //íà÷àëî ïåðåäà÷è â çàðåçåðâèðîâàííîì èíòåðâàëå
         events.push(income);
         events.push(reserve);
     }
@@ -262,7 +274,7 @@ int main(int argc, char** argv){
             curr_batch_age -= arr_period;
             curr_batch_index += 1;
 
-            if (curr_batch_index < batch_stream.size() - 1)
+            if (curr_batch_index < batch_stream.size())
                 curr_batch_size = batch_stream[curr_batch_index];
             else{
                 curr_batch_size = -1;
@@ -271,7 +283,7 @@ int main(int argc, char** argv){
             if (trace_ended)
                 break;
         }
-        if (curr_batch_index >= batch_stream.size() - 1)
+        if (curr_batch_index >= batch_stream.size())
             trace_ended = true;
 
         Event reserve(0, 1);
@@ -286,11 +298,12 @@ int main(int argc, char** argv){
     Time simtime = window_size;
     Time max_rand_time = 0;
     Time current_time = 0;
+
     while(true){
-        Event tmp = events.top();        //Текущее событие
-        if (tmp.time > simtime)            //Событие наступает за пределами окна
+        Event tmp = events.top();        //Current event
+        if (tmp.time > simtime)            //If it's out of window break sim
             break;
-        current_time = tmp.time;        //Текущее время, на выходе из цикла будет записано время последнего события
+        current_time = tmp.time;        //set current time from current event
 
         //FOR DEBUG
         std::cout << std::fixed << "the time is " << current_time << std::endl;
@@ -313,14 +326,14 @@ int main(int argc, char** argv){
         //Processing of IMITATION
         if(tmp.event_id == 0){  //If event is INCOME
             if (!trace_ended){
-                if (batch_index < batch_stream.size() - 1){
+                if (batch_index < batch_stream.size()){
                     Packet packet(tmp.time, batch_index);
                     for(int i = 0; i < batch_stream[batch_index]; i++){
                         packets.push_back(packet);
                     }
-                    batch_index++;              //переход к следующей пачке на новой итерации
+                    batch_index++;              //ïåðåõîä ê ñëåäóþùåé ïà÷êå íà íîâîé èòåðàöèè
 
-                    Event income(current_time + arr_period, 0);  //прибытие пачки
+                    Event income(current_time + arr_period, 0);  //ïðèáûòèå ïà÷êè
                     events.push(income);
                     last_arr_time = tmp.time;
                 }
@@ -350,8 +363,11 @@ int main(int argc, char** argv){
             max_rand_time = reserve.time;            //THRESHOLD OF RANDOM TX END
             //1) IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
             //2) THERE IS PACKET WHICH WILL DIE TILL NEXT RESERVATION PERIOD
-            if ((rand_event.time + rand_tx_duration <= max_rand_time) && (current_time - packets.front().time + res_period - delay_bound > 0))
-                events.push(rand_event);
+            if (random_on){
+                if ((rand_event.time + rand_tx_duration <= max_rand_time) && (current_time - packets.front().time + res_period - delay_bound > 0)){
+                    events.push(rand_event);
+                }
+            }
         }
         else //If event is RAND TRANSMISION
         {
@@ -369,13 +385,14 @@ int main(int argc, char** argv){
                         srandPackets++;
                     }
                     Event rand_event(current_time + rand_tx_duration + rand_tx(generator) , 2); //EVENT OF TX IN RANDOM ACCESS
-                    if (rand_event.time + rand_tx_duration < max_rand_time)
+                    std::cout << rand_event.time + rand_tx_duration << " but max is " << max_rand_time << std::endl;
+                    if (rand_event.time + rand_tx_duration <= max_rand_time)
                         events.push(rand_event); //IF TX IN RANDOM ACCESS ENDS EARLIER THAN START OF RESERVATION PERIOD, WE WILL DO IT
                 }
             }
         }
         //FOR DEBUG
-        std::cout << "dropped: " << dPackets << "\tSuccess:\t" << sPackets + srandPackets<< std::endl << std::endl;
+        std::cout << "dropped: " << dPackets << "\tSuccess:\t" << sPackets << "\trandSuccess:\t" << srandPackets << "\tbatch_index\t" << batch_index << std::endl << std::endl;
     }
 
     double PLR = static_cast<double>(dPackets) / (srandPackets + sPackets + dPackets);
@@ -424,7 +441,9 @@ int main(int argc, char** argv){
               << "dPackets = " << dPackets << std::endl
               << "sPackets = " << sPackets << std::endl
               << "srandPackets = " << srandPackets << std::endl
+
               << "PLR = " << PLR << std::endl
+              << "batch_size = " << batch_stream.size() << std::endl
               ;
 
     return 0;
